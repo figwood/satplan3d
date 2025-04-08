@@ -1,4 +1,6 @@
-FastAPI
-SQLAlchemy
-mysql-connector-python
+fastapi
+uvicorn
+sqlalchemy
 python-dotenv
+mysql-connector-python
+pyorbital

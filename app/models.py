@@ -34,3 +34,22 @@ class Sensor(Base):
     hex_color = Column(String(255))
     init_angle = Column(Float)
     satellite = relationship("Satellite", back_populates="sensors")
+
+class TLE(Base):
+    __tablename__ = "tle"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    noard_id = Column(String(255), nullable=False, index=True)
+    time = Column(Integer, nullable=False, index=True)  # timestamp
+    line1 = Column(String(255), nullable=False)
+    line2 = Column(String(255), nullable=False)
+
+    def is_valid(self):
+        return (
+            self.line1 and 
+            self.line2 and 
+            isinstance(self.line1, str) and 
+            isinstance(self.line2, str) and
+            len(self.line1.strip()) > 0 and 
+            len(self.line2.strip()) > 0
+        )
