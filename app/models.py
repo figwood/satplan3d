@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -8,6 +8,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_name = Column(String(255))
     password = Column(String(255))
+    is_admin = Column(Boolean, default=False)
 
 class Satellite(Base):
     __tablename__ = "satellite"
