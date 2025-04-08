@@ -1,19 +1,25 @@
-from fastapi import FastAPI, Depends, Query, HTTPException
+from fastapi import FastAPI, Depends, Query, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from pyorbital.orbital import Orbital
 from . import models
 from .database import get_db, engine
+from .security import verify_password, create_access_token, get_password_hash, SECRET_KEY, ALGORITHM
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import time
 import logging
+from jose import jwt, JWTError
 
 # Configure logging
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 class SensorResponse(BaseModel):
     id: int
@@ -48,9 +54,40 @@ class TrackPoint(BaseModel):
 class TLERequest(BaseModel):
     tle_data: str
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class PasswordChangeRequest(BaseModel):
+    old_password: str
+    new_password: str
+
 def get_default_time_range():
     now = int(time.time())
     return now, now + 7200  # now and now + 2 hours
+
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = db.query(models.User).filter(models.User.user_name == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 @app.get("/")
 def read_root():
@@ -212,6 +249,55 @@ async def get_track_points(
             continue
 
     return track_points
+
+@app.post("/login", response_model=Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    logger.debug(f"Login attempt for username: {form_data.username}")
+    
+    user = db.query(models.User).filter(models.User.user_name == form_data.username).first()
+    if not user:
+        logger.debug(f"User not found: {form_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    logger.debug(f"Found user: {user.user_name}")
+    logger.debug(f"Stored hashed password: {user.password}")
+    logger.debug(f"Attempting to verify password...")
+    
+    if not verify_password(form_data.password, user.password):
+        logger.debug("Password verification failed")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    logger.debug("Password verified successfully")
+    access_token_expires = timedelta(minutes=30)
+    access_token = create_access_token(
+        data={"sub": user.user_name}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/change-password")
+async def change_password(
+    request: PasswordChangeRequest,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not verify_password(request.old_password, current_user.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect old password"
+        )
+    
+    current_user.password = get_password_hash(request.new_password)
+    db.commit()
+    
+    return {"message": "Password updated successfully"}
 
 # Create tables
 models.Base.metadata.create_all(bind=engine)

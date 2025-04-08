@@ -3,12 +3,11 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 class User(Base):
-    __tablename__ = 'users'
-
+    __tablename__ = "sys_user"
+    
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, index=True)
-    email = Column(String(100), unique=True, index=True)
-    full_name = Column(String(100), index=True)
+    user_name = Column(String(255))
+    password = Column(String(255))
 
 class Satellite(Base):
     __tablename__ = "satellite"
