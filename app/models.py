@@ -63,3 +63,6 @@ class Track(Base):
     lon = Column(Float)
     lat = Column(Float)
     alt = Column(Float)
+    vx = Column(Float)
+    vy = Column(Float)
+    vz = Column(Float)

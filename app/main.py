@@ -50,6 +50,9 @@ class TrackPoint(BaseModel):
     lon: float
     lat: float
     alt: float
+    vx: float
+    vy: float
+    vz: float
 
 class TLERequest(BaseModel):
     tle_data: str
@@ -162,13 +165,19 @@ async def update_tle(
         for timestamp in range(start_time, end_time, step):
             try:
                 dt = datetime.utcfromtimestamp(timestamp)
+                # Get position and velocity
                 lon, lat, alt = orb.get_lonlatalt(dt)
+                # Get velocity in TEME frame (m/s)
+                pos, vel = orb.get_position(dt, normalize=False)
                 track = models.Track(
                     noard_id=sat_id,
                     time=timestamp,
                     lon=float(lon),
                     lat=float(lat),
-                    alt=float(alt * 1000)  # Convert from km to meters
+                    alt=float(alt * 1000),  # Convert from km to meters
+                    vx=float(vel[0] * 1000),  # Convert from km/s to m/s
+                    vy=float(vel[1] * 1000),
+                    vz=float(vel[2] * 1000)
                 )
                 tracks.append(track)
             except Exception as e:
@@ -214,7 +223,10 @@ async def get_track_points(
             time=track.time,
             lon=track.lon,
             lat=track.lat,
-            alt=track.alt
+            alt=track.alt,
+            vx=track.vx,
+            vy=track.vy,
+            vz=track.vz
         ) for track in tracks]
 
     # If no tracks found, fall back to real-time calculation
@@ -248,13 +260,17 @@ async def get_track_points(
         try:
             # Convert UTC timestamp to datetime
             dt = datetime.utcfromtimestamp(timestamp)
-            # Get position
+            # Get position and velocity
             lon, lat, alt = orb.get_lonlatalt(dt)
+            pos, vel = orb.get_position(dt, normalize=False)
             track_points.append(TrackPoint(
                 time=timestamp,
                 lon=float(lon),
                 lat=float(lat),
-                alt=float(alt * 1000)  # Convert from km to meters
+                alt=float(alt * 1000),  # Convert from km to meters
+                vx=float(vel[0] * 1000),  # Convert from km/s to m/s
+                vy=float(vel[1] * 1000),
+                vz=float(vel[2] * 1000)
             ))
         except Exception as e:
             logger.error(f"Error calculating position at {dt}: {e}")
