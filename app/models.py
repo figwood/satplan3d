@@ -53,3 +53,13 @@ class TLE(Base):
             len(self.line1.strip()) > 0 and 
             len(self.line2.strip()) > 0
         )
+
+class Track(Base):
+    __tablename__ = "track"
+
+    id = Column(Integer, primary_key=True)
+    noard_id = Column(String(255))
+    time = Column(Integer)
+    lon = Column(Float)
+    lat = Column(Float)
+    alt = Column(Float)

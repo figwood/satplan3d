@@ -45,6 +45,9 @@ class TrackPoint(BaseModel):
     lat: float
     alt: float
 
+class TLERequest(BaseModel):
+    tle_data: str
+
 def get_default_time_range():
     now = int(time.time())
     return now, now + 7200  # now and now + 2 hours
@@ -57,6 +60,80 @@ def read_root():
 def read_satellites(db: Session = Depends(get_db)):
     satellites = db.query(models.Satellite).all()
     return satellites
+
+@app.put("/tle")
+async def update_tle(request: TLERequest, db: Session = Depends(get_db)):
+    # Validate TLE format
+    lines = request.tle_data.strip().split('\n')
+    if len(lines) != 3:
+        raise HTTPException(status_code=400, detail="TLE must contain exactly 3 lines")
+
+    try:
+        line1 = lines[1].strip()
+        line2 = lines[2].strip()
+        sat_id = line1[2:7].strip()
+        
+        # Parse epoch from TLE line 1
+        year = int(line1[18:20])
+        day = float(line1[20:32])
+        
+        # Convert two-digit year to full year
+        year = year + (2000 if year < 57 else 1900)  # Assumes years 1957-2056
+        
+        # Calculate timestamp from year and day
+        year_start = datetime(year, 1, 1)
+        tle_time = int((year_start + timedelta(days=day-1)).timestamp())
+        
+        orb = Orbital(sat_id, line1=line1, line2=line2)
+        
+        # Define time range
+        start_time = tle_time
+        end_time = start_time + 7 * 24 * 3600  # One week
+
+        # Clean up old data for the same time period
+        db.query(models.Track).filter(
+            models.Track.noard_id == sat_id,
+            models.Track.time >= start_time,
+            models.Track.time <= end_time
+        ).delete()
+        
+        # Save TLE to database
+        tle = models.TLE(
+            noard_id=sat_id,
+            time=tle_time,
+            line1=line1,
+            line2=line2
+        )
+        db.add(tle)
+        
+        # Pre-calculate tracks for one week
+        step = 20  # 20 seconds interval
+        
+        tracks = []
+        for timestamp in range(start_time, end_time, step):
+            try:
+                dt = datetime.utcfromtimestamp(timestamp)
+                lon, lat, alt = orb.get_lonlatalt(dt)
+                track = models.Track(
+                    noard_id=sat_id,
+                    time=timestamp,
+                    lon=float(lon),
+                    lat=float(lat),
+                    alt=float(alt * 1000)  # Convert from km to meters
+                )
+                tracks.append(track)
+            except Exception as e:
+                logger.error(f"Error calculating position at {dt}: {e}")
+                continue
+        
+        db.bulk_save_objects(tracks)
+        db.commit()
+        
+        return {"message": "TLE updated and tracks calculated successfully"}
+
+    except Exception as e:
+        db.rollback()  # Rollback on any error
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/track-points", response_model=List[TrackPoint])
 async def get_track_points(
@@ -76,6 +153,22 @@ async def get_track_points(
     if stop_time <= start_time:
         raise HTTPException(status_code=400, detail="stop_time must be after start_time")
 
+    # First try to get tracks from database
+    tracks = db.query(models.Track).filter(
+        models.Track.noard_id == noard_id,
+        models.Track.time >= start_time,
+        models.Track.time <= stop_time
+    ).order_by(models.Track.time).all()
+
+    if tracks:
+        return [TrackPoint(
+            time=track.time,
+            lon=track.lon,
+            lat=track.lat,
+            alt=track.alt
+        ) for track in tracks]
+
+    # If no tracks found, fall back to real-time calculation
     # Get the closest TLE data by absolute time difference
     tle_data = db.query(models.TLE).filter(
         models.TLE.noard_id == noard_id
