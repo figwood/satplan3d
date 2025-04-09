@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from datetime import timedelta  # Added import
 from ..database import get_db
 from ..security import verify_password, create_access_token, get_password_hash
 from ..schemas.base import Token, PasswordChangeRequest
