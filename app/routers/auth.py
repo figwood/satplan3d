@@ -1,18 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta  # Added import
+from datetime import timedelta, datetime
+from jose import jwt
+from passlib.context import CryptContext
 from ..database import get_db
-from ..security import verify_password, create_access_token, get_password_hash
+from ..security import SECRET_KEY, ALGORITHM
 from ..schemas.base import Token, PasswordChangeRequest
-from ..dependencies import get_current_user, oauth2_scheme
+from ..dependencies import get_current_user
 from .. import models
 import logging
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-@router.post("/login", response_model=Token)
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+@router.post("/api/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     logger.debug(f"Login attempt for username: {form_data.username}")
     

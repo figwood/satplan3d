@@ -76,17 +76,20 @@ async def update_tle(
                 dt = datetime.utcfromtimestamp(timestamp)
                 # Get position and velocity
                 lon, lat, alt = orb.get_lonlatalt(dt)
-                # Get velocity in TEME frame (m/s)
+                # Get velocity in TEME frame (km/s)
                 pos, vel = orb.get_position(dt, normalize=False)
                 track = models.Track(
                     noard_id=sat_id,
                     time=timestamp,
                     lon=float(lon),
                     lat=float(lat),
-                    alt=float(alt * 1000),  # Convert from km to meters
-                    vx=float(vel[0] * 1000),  # Convert from km/s to m/s
-                    vy=float(vel[1] * 1000),
-                    vz=float(vel[2] * 1000)
+                    alt=float(alt),
+                    vx=float(vel[0]),
+                    vy=float(vel[1]),
+                    vz=float(vel[2]),
+                    eci_x=float(pos[0]),
+                    eci_y=float(pos[1]),
+                    eci_z=float(pos[2])
                 )
                 tracks.append(track)
             except Exception as e:

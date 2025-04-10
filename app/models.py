@@ -66,3 +66,6 @@ class Track(Base):
     vx = Column(Float)
     vy = Column(Float)
     vz = Column(Float)
+    eci_x = Column(Float)  # Added column
+    eci_y = Column(Float)  # Added column
+    eci_z = Column(Float)  # Added column
