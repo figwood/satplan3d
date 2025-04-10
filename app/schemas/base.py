@@ -53,3 +53,10 @@ class CoveragePoint(BaseModel):
     time: int
     lon: float
     lat: float
+
+class PathPoint(BaseModel):
+    time: int
+    lon1: float
+    lat1: float
+    lon2: float
+    lat2: float

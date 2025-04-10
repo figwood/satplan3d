@@ -24,16 +24,25 @@ class Sensor(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     sat_noard_id = Column(String(255), ForeignKey('satellite.noard_id'))
-    sat_name = Column(String(255))
     name = Column(String(255))
     resolution = Column(Float)
     width = Column(Float)
-    right_side_angle = Column(Float)
-    left_side_angle = Column(Float)
+    right_side_angle = Column(Float, default=0)
+    left_side_angle = Column(Float, default=0)
     observe_angle = Column(Float)
     hex_color = Column(String(255))
-    init_angle = Column(Float)
+    init_angle = Column(Float, default=0)
+    cur_side_angle = Column(Float, default=0)
     satellite = relationship("Satellite", back_populates="sensors")
+
+    def set_side_angle(self, angle: float):
+        """设置当前侧摆角度"""
+        self.cur_side_angle = angle
+
+    @property
+    def obs_angle(self) -> float:
+        """For compatibility with coordinate transform code"""
+        return self.observe_angle if self.observe_angle else 0
 
 class TLE(Base):
     __tablename__ = "tle"
@@ -69,3 +78,15 @@ class Track(Base):
     eci_x = Column(Float)  # Added column
     eci_y = Column(Float)  # Added column
     eci_z = Column(Float)  # Added column
+
+class SensorPath(Base):
+    __tablename__ = "sensor_path"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    noard_id = Column(String(255))
+    sensor_id = Column(Integer)
+    time = Column(Integer)
+    lon1 = Column(Float)
+    lat1 = Column(Float)
+    lon2 = Column(Float)
+    lat2 = Column(Float)

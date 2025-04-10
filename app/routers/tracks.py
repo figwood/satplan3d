@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from ..database import get_db
-from ..schemas.base import TrackPoint
+from ..schemas.base import TrackPoint, PathPoint
 from typing import List, Optional
 from pyorbital.orbital import Orbital
 from .. import models
@@ -96,3 +96,50 @@ async def get_track_points(
             continue
 
     return track_points
+
+@router.get("/path-points", response_model=List[PathPoint])
+async def get_path_points(
+    noard_id: str,
+    sensor_name: str,
+    start_time: Optional[int] = Query(None, description="Start timestamp in UTC"),
+    stop_time: Optional[int] = Query(None, description="Stop timestamp in UTC"),
+    db: Session = Depends(get_db)
+):
+    # Handle default times (in UTC)
+    if start_time is None:
+        start_time = int(datetime.utcnow().timestamp())
+        stop_time = stop_time or (start_time + 7200)  # 2 hours from start
+    elif stop_time is None:
+        stop_time = start_time + 7200  # 2 hours from start
+
+    # Validate times
+    if stop_time <= start_time:
+        raise HTTPException(status_code=400, detail="stop_time must be after start_time")
+
+    # Get sensor id
+    sensor = db.query(models.Sensor).filter(
+        models.Sensor.sat_noard_id == noard_id,
+        models.Sensor.name == sensor_name
+    ).first()
+    
+    if not sensor:
+        raise HTTPException(status_code=404, detail="Sensor not found")
+
+    # Get path points from database
+    paths = db.query(models.SensorPath).filter(
+        models.SensorPath.noard_id == noard_id,
+        models.SensorPath.sensor_id == sensor.id,
+        models.SensorPath.time >= start_time,
+        models.SensorPath.time <= stop_time
+    ).order_by(models.SensorPath.time).all()
+
+    if not paths:
+        raise HTTPException(status_code=404, detail="No path data found for this time period")
+
+    return [PathPoint(
+        time=path.time,
+        lon1=path.lon1,
+        lat1=path.lat1,
+        lon2=path.lon2,
+        lat2=path.lat2
+    ) for path in paths]

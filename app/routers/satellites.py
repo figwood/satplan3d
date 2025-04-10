@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session
 from pyorbital.orbital import Orbital
 from typing import List
 from datetime import datetime, timedelta
-import logging
+import logging, numpy as np
 from ..database import get_db
 from ..schemas.base import SatelliteResponse, TLERequest
 from ..dependencies import get_admin_user
 from .. import models
+from ..utils.coordinate_transform import SatelliteCoordinate
 
 router = APIRouter()
 
@@ -51,11 +52,17 @@ async def update_tle(
         start_time = tle_time
         end_time = start_time + 7 * 24 * 3600  # One week
 
-        # Clean up old data for the same time period
+        # Clean up old data
         db.query(models.Track).filter(
             models.Track.noard_id == sat_id,
             models.Track.time >= start_time,
             models.Track.time <= end_time
+        ).delete()
+
+        db.query(models.SensorPath).filter(
+            models.SensorPath.noard_id == sat_id,
+            models.SensorPath.time >= start_time,
+            models.SensorPath.time <= end_time
         ).delete()
         
         # Save TLE to database
@@ -69,8 +76,16 @@ async def update_tle(
         
         # Pre-calculate tracks for one week
         step = 20  # 20 seconds interval
+        coord_calculator = SatelliteCoordinate()
         
         tracks = []
+        sensor_paths = []
+
+        # Get all sensors for this satellite
+        sensors = db.query(models.Sensor).filter(
+            models.Sensor.sat_noard_id == sat_id
+        ).all()
+        
         for timestamp in range(start_time, end_time, step):
             try:
                 dt = datetime.utcfromtimestamp(timestamp)
@@ -78,6 +93,8 @@ async def update_tle(
                 lon, lat, alt = orb.get_lonlatalt(dt)
                 # Get velocity in TEME frame (km/s)
                 pos, vel = orb.get_position(dt, normalize=False)
+                
+                # Create track point
                 track = models.Track(
                     noard_id=sat_id,
                     time=timestamp,
@@ -92,14 +109,41 @@ async def update_tle(
                     eci_z=float(pos[2])
                 )
                 tracks.append(track)
+
+                # Calculate sensor paths
+                r = np.array([pos[0], pos[1], pos[2]]) / coord_calculator.R
+                v = np.array([vel[0], vel[1], vel[2]]) / coord_calculator.R
+
+                for sensor in sensors:
+                    try:
+                        left_lon, left_lat, right_lon, right_lat = coord_calculator.get_sensor_points_blh(
+                            sensor, dt, r, v
+                        )
+                        
+                        # Store both points in one record
+                        sensor_paths.append(models.SensorPath(
+                            noard_id=sat_id,
+                            sensor_id=sensor.id,
+                            time=timestamp,
+                            lon1=left_lon,
+                            lat1=left_lat,
+                            lon2=right_lon,
+                            lat2=right_lat
+                        ))
+                    except Exception as e:
+                        logger.error(f"Error calculating sensor path for sensor {sensor.id} at {dt}: {e}")
+                        continue
+
             except Exception as e:
                 logger.error(f"Error calculating position at {dt}: {e}")
                 continue
         
+        # Save all data
         db.bulk_save_objects(tracks)
+        db.bulk_save_objects(sensor_paths)
         db.commit()
         
-        return {"message": "TLE updated and tracks calculated successfully"}
+        return {"message": "TLE updated, tracks and sensor paths calculated successfully"}
 
     except Exception as e:
         db.rollback()  # Rollback on any error
