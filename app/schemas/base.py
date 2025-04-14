@@ -60,3 +60,16 @@ class PathPoint(BaseModel):
     lat1: float
     lon2: float
     lat2: float
+
+class Area(BaseModel):
+    x_min: float
+    x_max: float
+    y_min: float
+    y_max: float
+
+class ScheduleRequest(BaseModel):
+    noard_id: str
+    sensor_name: str
+    start_time: int
+    stop_time: int
+    area: Area

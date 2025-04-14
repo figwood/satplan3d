@@ -55,14 +55,14 @@ async def update_tle(
         # Clean up old data
         db.query(models.Track).filter(
             models.Track.noard_id == sat_id,
-            models.Track.time >= start_time,
-            models.Track.time <= end_time
+            models.Track.track_time >= start_time,
+            models.Track.track_time <= end_time
         ).delete()
 
         db.query(models.SensorPath).filter(
             models.SensorPath.noard_id == sat_id,
-            models.SensorPath.time >= start_time,
-            models.SensorPath.time <= end_time
+            models.SensorPath.track_time >= start_time,
+            models.SensorPath.track_time <= end_time
         ).delete()
         
         # Save TLE to database
@@ -97,7 +97,7 @@ async def update_tle(
                 # Create track point
                 track = models.Track(
                     noard_id=sat_id,
-                    time=timestamp,
+                    track_time=timestamp,
                     lon=float(lon),
                     lat=float(lat),
                     alt=float(alt),
@@ -124,7 +124,7 @@ async def update_tle(
                         sensor_paths.append(models.SensorPath(
                             noard_id=sat_id,
                             sensor_id=sensor.id,
-                            time=timestamp,
+                            track_time=timestamp,
                             lon1=left_lon,
                             lat1=left_lat,
                             lon2=right_lon,

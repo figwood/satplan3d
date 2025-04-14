@@ -33,13 +33,13 @@ async def get_track_points(
     # First try to get tracks from database
     tracks = db.query(models.Track).filter(
         models.Track.noard_id == noard_id,
-        models.Track.time >= start_time,
-        models.Track.time <= stop_time
-    ).order_by(models.Track.time).all()
+        models.Track.track_time >= start_time,
+        models.Track.track_time <= stop_time
+    ).order_by(models.Track.track_time).all()
 
     if tracks:
         return [TrackPoint(
-            time=track.time,
+            time=track.track_time,
             lon=track.lon,
             lat=track.lat,
             alt=track.alt,
@@ -129,15 +129,15 @@ async def get_path_points(
     paths = db.query(models.SensorPath).filter(
         models.SensorPath.noard_id == noard_id,
         models.SensorPath.sensor_id == sensor.id,
-        models.SensorPath.time >= start_time,
-        models.SensorPath.time <= stop_time
-    ).order_by(models.SensorPath.time).all()
+        models.SensorPath.track_time >= start_time,
+        models.SensorPath.track_time <= stop_time
+    ).order_by(models.SensorPath.track_time).all()
 
     if not paths:
         raise HTTPException(status_code=404, detail="No path data found for this time period")
 
     return [PathPoint(
-        time=path.time,
+        time=path.track_time,
         lon1=path.lon1,
         lat1=path.lat1,
         lon2=path.lon2,

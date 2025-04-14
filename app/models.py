@@ -68,16 +68,16 @@ class Track(Base):
 
     id = Column(Integer, primary_key=True)
     noard_id = Column(String(255))
-    time = Column(Integer)
+    track_time = Column(Integer)
     lon = Column(Float)
     lat = Column(Float)
     alt = Column(Float)
     vx = Column(Float)
     vy = Column(Float)
     vz = Column(Float)
-    eci_x = Column(Float)  # Added column
-    eci_y = Column(Float)  # Added column
-    eci_z = Column(Float)  # Added column
+    eci_x = Column(Float)
+    eci_y = Column(Float)
+    eci_z = Column(Float)
 
 class SensorPath(Base):
     __tablename__ = "sensor_path"
@@ -85,7 +85,7 @@ class SensorPath(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     noard_id = Column(String(255))
     sensor_id = Column(Integer)
-    time = Column(Integer)
+    track_time = Column(Integer)
     lon1 = Column(Float)
     lat1 = Column(Float)
     lon2 = Column(Float)
