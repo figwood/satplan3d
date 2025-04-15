@@ -30,6 +30,31 @@ class SensorResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SensorCreate(BaseModel):
+    noard_id: str
+    sensor_name: str
+    resolution: float
+    right_side_angle: float
+    left_side_angle: float
+    init_angle: float
+    observe_angle: float
+    hex_color: str
+
+    class Config:
+        from_attributes = True
+
+class SensorUpdate(BaseModel):
+    sensor_name: str
+    resolution: float
+    right_side_angle: float
+    left_side_angle: float
+    init_angle: float
+    observe_angle: float
+    hex_color: str
+
+    class Config:
+        from_attributes = True
+
 class SatelliteResponse(BaseModel):
     id: int
     noard_id: str | None

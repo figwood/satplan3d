@@ -5,7 +5,7 @@ from typing import List
 from datetime import datetime, timedelta
 import logging, numpy as np
 from ..database import get_db
-from ..schemas.base import SatelliteResponse, TLERequest, SatelliteCreate, SatelliteUpdate
+from ..schemas.base import SatelliteResponse, TLERequest, SatelliteCreate, SatelliteUpdate, SensorCreate, SensorUpdate, SensorResponse
 from ..dependencies import get_admin_user
 from .. import models
 from ..utils.coordinate_transform import SatelliteCoordinate
@@ -301,4 +301,106 @@ async def delete_satellite(
 
     except Exception as e:
         db.rollback()  # Rollback on any error
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/sensor", response_model=SensorResponse)
+async def create_sensor(
+    request: SensorCreate,
+    admin_user: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Check if satellite exists
+        satellite = db.query(models.Satellite).filter(
+            models.Satellite.noard_id == request.noard_id
+        ).first()
+        
+        if not satellite:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Satellite with NORAD ID {request.noard_id} not found"
+            )
+
+        # Check if sensor name already exists for this satellite
+        existing_sensor = db.query(models.Sensor).filter(
+            models.Sensor.sat_noard_id == request.noard_id,
+            models.Sensor.name == request.sensor_name
+        ).first()
+        
+        if existing_sensor:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sensor with name {request.sensor_name} already exists for this satellite"
+            )
+
+        # Create new sensor
+        sensor = models.Sensor(
+            sat_noard_id=request.noard_id,
+            name=request.sensor_name,
+            resolution=request.resolution,
+            right_side_angle=request.right_side_angle,
+            left_side_angle=request.left_side_angle,
+            init_angle=request.init_angle,
+            observe_angle=request.observe_angle,
+            hex_color=request.hex_color
+        )
+        
+        db.add(sensor)
+        db.commit()
+        db.refresh(sensor)
+        
+        return sensor
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/sensor/{sensor_id}", response_model=SensorResponse)
+async def update_sensor(
+    sensor_id: int,
+    request: SensorUpdate,
+    admin_user: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Find the sensor by ID
+        sensor = db.query(models.Sensor).filter(
+            models.Sensor.id == sensor_id
+        ).first()
+        
+        if not sensor:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sensor with ID {sensor_id} not found"
+            )
+
+        # If sensor name is being changed, check for conflicts
+        if request.sensor_name != sensor.name:
+            existing_sensor = db.query(models.Sensor).filter(
+                models.Sensor.sat_noard_id == sensor.sat_noard_id,
+                models.Sensor.name == request.sensor_name
+            ).first()
+            
+            if existing_sensor:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Sensor with name {request.sensor_name} already exists for this satellite"
+                )
+
+        # Update sensor information
+        sensor.name = request.sensor_name
+        sensor.resolution = request.resolution
+        sensor.right_side_angle = request.right_side_angle
+        sensor.left_side_angle = request.left_side_angle
+        sensor.init_angle = request.init_angle
+        sensor.observe_angle = request.observe_angle
+        sensor.hex_color = request.hex_color
+        
+        db.commit()
+        db.refresh(sensor)
+        
+        return sensor
+
+    except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
