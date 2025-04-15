@@ -404,3 +404,40 @@ async def update_sensor(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/sensor/{sensor_id}")
+async def delete_sensor(
+    sensor_id: int,
+    admin_user: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Find the sensor by ID
+        sensor = db.query(models.Sensor).filter(
+            models.Sensor.id == sensor_id
+        ).first()
+        
+        if not sensor:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Sensor with ID {sensor_id} not found"
+            )
+
+        # Delete all related sensor paths
+        db.query(models.SensorPath).filter(
+            models.SensorPath.sensor_id == sensor_id
+        ).delete()
+        
+        # Delete the sensor
+        db.query(models.Sensor).filter(
+            models.Sensor.id == sensor_id
+        ).delete()
+        
+        # Commit all changes
+        db.commit()
+        
+        return {"message": f"Sensor with ID {sensor_id} and all related data deleted successfully"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
