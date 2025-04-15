@@ -16,6 +16,9 @@ class PasswordChangeRequest(BaseModel):
 class TLERequest(BaseModel):
     tle_data: str
 
+class TLEUpdateResponse(BaseModel):
+    message: str
+
 class SensorResponse(BaseModel):
     id: int
     name: str
@@ -60,6 +63,7 @@ class SatelliteResponse(BaseModel):
     noard_id: str | None
     name: str | None
     hex_color: str | None
+    latest_tle_time: int | None
     sensors: List[SensorResponse]
 
     class Config:

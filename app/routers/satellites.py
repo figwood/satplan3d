@@ -5,7 +5,7 @@ from typing import List
 from datetime import datetime, timedelta
 import logging, numpy as np
 from ..database import get_db
-from ..schemas.base import SatelliteResponse, TLERequest, SatelliteCreate, SatelliteUpdate, SensorCreate, SensorUpdate, SensorResponse
+from ..schemas.base import SatelliteResponse, TLERequest, SatelliteCreate, SatelliteUpdate, SensorCreate, SensorUpdate, SensorResponse, TLEUpdateResponse
 from ..dependencies import get_admin_user
 from .. import models
 from ..utils.coordinate_transform import SatelliteCoordinate
@@ -16,7 +16,16 @@ logger = logging.getLogger(__name__)
 
 @router.get("/satellite/list", response_model=List[SatelliteResponse])
 def read_satellites(db: Session = Depends(get_db)):
-    satellites = db.query(models.Satellite).all()
+    satellites = []
+    for sat in db.query(models.Satellite).all():
+        # 获取最新的 TLE 时间
+        latest_tle = db.query(models.TLE).filter(
+            models.TLE.noard_id == sat.noard_id
+        ).order_by(models.TLE.time.desc()).first()
+        
+        # 设置最新 TLE 时间
+        sat.latest_tle_time = latest_tle.time if latest_tle else None
+        satellites.append(sat)
     return satellites
 
 @router.post("/satellite", response_model=SatelliteResponse)
@@ -73,7 +82,6 @@ async def create_satellite(
         )
         db.add(tle)
         
-        # Commit to get the satellite ID
         db.commit()
         db.refresh(satellite)
 
@@ -120,7 +128,7 @@ async def update_satellite(
         db.rollback()  # Rollback on any error
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put("/tle")
+@router.put("/tle", response_model=TLEUpdateResponse)
 async def update_tle(
     request: TLERequest,
     admin_user: models.User = Depends(get_admin_user),
