@@ -5,7 +5,7 @@ from typing import List
 from datetime import datetime, timedelta
 import logging, numpy as np
 from ..database import get_db
-from ..schemas.base import SatelliteResponse, TLERequest
+from ..schemas.base import SatelliteResponse, TLERequest, SatelliteCreate, SatelliteUpdate
 from ..dependencies import get_admin_user
 from .. import models
 from ..utils.coordinate_transform import SatelliteCoordinate
@@ -14,10 +14,111 @@ router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.get("/satellites", response_model=List[SatelliteResponse])
+@router.get("/satellite/list", response_model=List[SatelliteResponse])
 def read_satellites(db: Session = Depends(get_db)):
     satellites = db.query(models.Satellite).all()
     return satellites
+
+@router.post("/satellite", response_model=SatelliteResponse)
+async def create_satellite(
+    request: SatelliteCreate,
+    admin_user: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    # Validate TLE format
+    lines = request.tle.strip().split('\n')
+    if len(lines) != 3:
+        raise HTTPException(status_code=400, detail="TLE must contain exactly 3 lines")
+
+    try:
+        line1 = lines[1].strip()
+        line2 = lines[2].strip()
+        sat_id = line1[2:7].strip()
+
+        # Check if satellite already exists
+        existing_satellite = db.query(models.Satellite).filter(
+            models.Satellite.noard_id == sat_id
+        ).first()
+        if existing_satellite:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Satellite with NORAD ID {sat_id} already exists"
+            )
+
+        # Create new satellite
+        satellite = models.Satellite(
+            noard_id=sat_id,
+            name=request.sat_name,
+            hex_color=request.hex_color
+        )
+        db.add(satellite)
+
+        # Parse epoch from TLE line 1
+        year = int(line1[18:20])
+        day = float(line1[20:32])
+        
+        # Convert two-digit year to full year
+        year = year + (2000 if year < 57 else 1900)  # Assumes years 1957-2056
+        
+        # Calculate timestamp from year and day
+        year_start = datetime(year, 1, 1)
+        tle_time = int((year_start + timedelta(days=day-1)).timestamp())
+
+        # Save TLE to database
+        tle = models.TLE(
+            noard_id=sat_id,
+            time=tle_time,
+            line1=line1,
+            line2=line2
+        )
+        db.add(tle)
+        
+        # Commit to get the satellite ID
+        db.commit()
+        db.refresh(satellite)
+
+        # Calculate initial tracks using the update_tle logic
+        tle_request = TLERequest(tle_data=request.tle)
+        await update_tle(tle_request, admin_user, db)
+        
+        return satellite
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put("/satellite/{noard_id}", response_model=SatelliteResponse)
+async def update_satellite(
+    noard_id: str,
+    request: SatelliteUpdate,
+    admin_user: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Check if satellite exists
+        satellite = db.query(models.Satellite).filter(
+            models.Satellite.noard_id == noard_id
+        ).first()
+        
+        if not satellite:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Satellite with NORAD ID {noard_id} not found"
+            )
+
+        # Update satellite information
+        satellite.name = request.sat_name
+        satellite.hex_color = request.hex_color
+        
+        # Commit changes
+        db.commit()
+        db.refresh(satellite)
+        
+        return satellite
+
+    except Exception as e:
+        db.rollback()  # Rollback on any error
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/tle")
 async def update_tle(
@@ -144,6 +245,59 @@ async def update_tle(
         db.commit()
         
         return {"message": "TLE updated, tracks and sensor paths calculated successfully"}
+
+    except Exception as e:
+        db.rollback()  # Rollback on any error
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/satellite/{noard_id}")
+async def delete_satellite(
+    noard_id: str,
+    admin_user: models.User = Depends(get_admin_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Check if satellite exists
+        satellite = db.query(models.Satellite).filter(
+            models.Satellite.noard_id == noard_id
+        ).first()
+        
+        if not satellite:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Satellite with NORAD ID {noard_id} not found"
+            )
+
+        # Delete all related records
+        # Delete sensor paths
+        db.query(models.SensorPath).filter(
+            models.SensorPath.noard_id == noard_id
+        ).delete()
+        
+        # Delete tracks
+        db.query(models.Track).filter(
+            models.Track.noard_id == noard_id
+        ).delete()
+        
+        # Delete TLEs
+        db.query(models.TLE).filter(
+            models.TLE.noard_id == noard_id
+        ).delete()
+        
+        # Delete sensors
+        db.query(models.Sensor).filter(
+            models.Sensor.sat_noard_id == noard_id
+        ).delete()
+        
+        # Delete the satellite itself
+        db.query(models.Satellite).filter(
+            models.Satellite.noard_id == noard_id
+        ).delete()
+
+        # Commit all changes
+        db.commit()
+        
+        return {"message": f"Satellite {noard_id} and all related data deleted successfully"}
 
     except Exception as e:
         db.rollback()  # Rollback on any error

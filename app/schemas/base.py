@@ -40,6 +40,18 @@ class SatelliteResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SatelliteCreate(BaseModel):
+    sat_name: str
+    hex_color: str
+    tle: str
+
+class SatelliteUpdate(BaseModel):
+    sat_name: str
+    hex_color: str
+
+    class Config:
+        from_attributes = True
+
 class TrackPoint(BaseModel):
     time: int  # timestamp
     lon: float
