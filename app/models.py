@@ -44,6 +44,28 @@ class Sensor(Base):
         """For compatibility with coordinate transform code"""
         return self.observe_angle if self.observe_angle else 0
 
+class Order(Base):
+    __tablename__ = "order"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_time = Column(Integer)
+    start_time = Column(Integer)
+    stop_time = Column(Integer)
+    area = Column(String)
+    sensor_ids = Column(String)
+    order_name = Column(String)
+    hex_color = Column(String)
+
+class OrderPath(Base):
+    __tablename__ = "order_path"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_id = Column(Integer)
+    sensor_id = Column(Integer)
+    start_time = Column(Integer)
+    stop_time = Column(Integer)
+    path = Column(String)
+
 class TLE(Base):
     __tablename__ = "tle"
     

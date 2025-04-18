@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from .database import engine
 from . import models
-from .routers import auth, satellites, tracks, coverage, schedule
+from .routers import auth, satellites, tracks, coverage, schedule, orders
 
 # Configure logging
 import logging
@@ -20,6 +20,7 @@ app.include_router(satellites.router, prefix="/api", tags=["satellites"])
 app.include_router(tracks.router, prefix="/api", tags=["tracks"])
 app.include_router(coverage.router, prefix="/api", tags=["coverage"])
 app.include_router(schedule.router, prefix="/api", tags=["schedule"])
+app.include_router(orders.router, prefix="/api", tags=["orders"])
 
 @app.get("/api")
 def read_root():
