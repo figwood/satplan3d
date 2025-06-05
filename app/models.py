@@ -51,10 +51,10 @@ class Order(Base):
     order_time = Column(Integer)
     start_time = Column(Integer)
     stop_time = Column(Integer)
-    area = Column(String)
-    sensor_ids = Column(String)
-    order_name = Column(String)
-    hex_color = Column(String)
+    area = Column(String(1000))  # Area coordinates string
+    sensor_ids = Column(String(500))  # Comma-separated sensor IDs
+    order_name = Column(String(255))  # Order name
+    hex_color = Column(String(10))  # Hex color code
 
 class OrderPath(Base):
     __tablename__ = "order_path"
@@ -64,7 +64,7 @@ class OrderPath(Base):
     sensor_id = Column(Integer)
     start_time = Column(Integer)
     stop_time = Column(Integer)
-    path = Column(String)
+    path = Column(String(2000))  # Path coordinates string
 
 class TLE(Base):
     __tablename__ = "tle"
