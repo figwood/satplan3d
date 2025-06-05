@@ -15,7 +15,9 @@ async def get_orders(db: Session = Depends(get_db)):
         OrderListResponse(
             order_name=order.order_name,
             order_id=order.id,
-            hex_color=order.hex_color
+            hex_color=order.hex_color,
+            start_time=order.start_time,
+            stop_time=order.stop_time
         ) for order in orders
     ]
 

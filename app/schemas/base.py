@@ -110,6 +110,8 @@ class OrderListResponse(BaseModel):
     order_name: str
     order_id: int
     hex_color: str
+    start_time: int
+    stop_time: int
 
     class Config:
         from_attributes = True
