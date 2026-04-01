@@ -1,111 +1,201 @@
-# FastAPI 项目说明
+# SatPlan3D API
 
-本项目是一个基于 FastAPI 的 Web 应用，连接到 MySQL 数据库，提供用户认证、权限管理以及卫星轨道计算功能。以下是项目的详细说明和开发指南。
+SatPlan3D is a FastAPI backend for satellite planning workflows. It combines user authentication, satellite and sensor management, TLE-driven orbit propagation, precomputed track generation, observation opportunity search, and order management in a single MySQL-backed service.
 
-## 项目结构
+The codebase is structured as a pragmatic API service rather than a generic FastAPI starter. If you are integrating a frontend or building automation around Earth observation planning, this repository provides the core backend pieces.
 
-```
+## Highlights
+
+- JWT-based authentication with admin-only operations for protected write endpoints.
+- Satellite registration from TLE data.
+- Automatic one-week track and sensor path precomputation after TLE updates.
+- Track lookup with fallback to real-time orbital calculation.
+- Observation opportunity search within a geographic bounding box.
+- Order creation, listing, inspection, update, and deletion.
+- MySQL schema bootstrap via `init.sql` and automatic SQLAlchemy table creation on startup.
+
+## Current API Scope
+
+The application currently exposes these functional areas:
+
+- **Authentication**
+  - `POST /api/login`
+  - `POST /change-password`
+- **Satellites and TLE management**
+  - `GET /api/satellite/list`
+  - `POST /api/satellite`
+  - `PUT /api/satellite/{noard_id}`
+  - `PUT /api/tle`
+- **Tracks and sensor paths**
+  - `GET /api/track-points`
+  - `GET /api/path-points`
+- **Coverage and scheduling**
+  - `GET /api/coverage`
+  - `POST /api/schedule`
+- **Orders**
+  - `GET /api/order/list`
+  - `POST /api/order`
+  - `GET /api/order/{order_id}/info`
+  - `PUT /api/order/{order_id}`
+  - `DELETE /api/order/{order_id}`
+
+Interactive API docs are available through FastAPI once the server is running:
+
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/redoc`
+
+## Project Structure
+
+```text
 satplan3d
 ├── app
-│   ├── main.py          # FastAPI 应用的入口文件
-│   ├── database.py      # 数据库连接配置
-│   ├── models.py        # 数据库模型定义
-│   ├── routers          # 路由模块目录
-│   │   ├── auth.py      # 用户认证相关路由
-│   │   ├── orbit.py     # 卫星轨道计算相关路由
-│   │   └── ...          # 其他路由模块
-│   ├── dependencies.py  # 依赖注入模块
-│   ├── security.py      # 安全相关功能（如密码加密、Token 生成）
-│   └── orbit_calculator # 卫星轨道计算核心逻辑
-├── .env                 # 环境变量配置文件
-├── requirements.txt     # 项目依赖
-├── Dockerfile           # Docker 镜像构建文件
-└── README.md            # 项目文档
+│   ├── main.py                 # FastAPI entry point and router registration
+│   ├── database.py             # SQLAlchemy engine and session setup
+│   ├── models.py               # ORM models
+│   ├── dependencies.py         # Auth and permission dependencies
+│   ├── security.py             # Password hashing and JWT helpers
+│   ├── routers
+│   │   ├── auth.py             # Login and password change
+│   │   ├── satellites.py       # Satellite, TLE, and sensor-related operations
+│   │   ├── tracks.py           # Orbit track and path queries
+│   │   ├── coverage.py         # Coverage endpoint scaffold
+│   │   ├── schedule.py         # Observation opportunity search
+│   │   └── orders.py           # Order CRUD endpoints
+│   ├── schemas
+│   │   └── base.py             # Pydantic request and response schemas
+│   └── utils
+│       └── coordinate_transform.py
+├── init.sql                    # Example schema and seed data for MySQL
+├── requirements.txt            # Python dependencies
+├── Dockerfile                  # Container build file
+├── README.md                   # English documentation
+└── README.zh.md                # Chinese documentation
 ```
 
-## 快速开始
+## Tech Stack
 
-1. **克隆代码库：**
-   ```bash
-   git clone <repository-url>
-   cd satplan3d
-   ```
+- **FastAPI** for the web API and OpenAPI documentation.
+- **SQLAlchemy** for ORM and database sessions.
+- **MySQL** with `mysql-connector-python` as the database backend.
+- **pyorbital** for TLE-based orbital propagation.
+- **NumPy** and **SciPy** for numerical support.
+- **python-jose** and **passlib** for JWT auth and password hashing.
 
-2. **创建虚拟环境并安装依赖：**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # Windows 使用 `venv\Scripts\activate`
-   pip install -r requirements.txt
-   ```
+## Getting Started
 
-3. **配置环境变量：**
-   在项目根目录创建 `.env` 文件，内容如下：
-   ```
-   DB_USER=root
-   DB_PASSWORD=123456
-   SECRET_KEY=your_secret_key
-   ALGORITHM=HS256
-   ```
+### 1. Clone the repository
 
-4. **运行应用：**
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+```bash
+git clone <repository-url>
+cd satplan3d
+```
 
-5. **访问应用：**
-   打开浏览器访问 `http://127.0.0.1:8000`。
+### 2. Create a virtual environment
 
-## 核心功能
+```bash
+python -m venv venv
+source venv/bin/activate
+```
 
-### 卫星轨道计算
+On Windows:
 
-本项目实现了卫星轨道计算功能，支持以下特性：
-- 基于两行轨道元素（TLE）进行轨道预测。
-- 提供卫星位置和速度的精确计算。
-- 支持多种时间范围的轨道模拟和可视化。
+```bash
+venv\Scripts\activate
+```
 
-卫星轨道计算的核心逻辑位于 `app/orbit_calculator` 目录下，使用了专业的轨道力学库和数学计算工具，确保计算的精度和性能。
+### 3. Install dependencies
 
-## 技术栈说明
+```bash
+pip install -r requirements.txt
+```
 
-### 核心技术栈
+### 4. Configure the database connection
 
-- **FastAPI**：用于构建高性能的 Web API，支持异步操作，开发效率高。
-- **SQLAlchemy**：用于数据库操作，支持 ORM 和原生 SQL 查询。
-- **pyorbital**：用于卫星轨道计算，支持基于 TLE 的轨道预测。
+Create a `.env` file in the project root:
 
-### 选用原因
+```env
+DB_USER=root
+DB_PASSWORD=123456
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=satplan3d
+```
 
-1. **FastAPI**：
-   - 提供了现代化的开发体验，支持自动生成 API 文档。
-   - 异步支持使其在高并发场景下表现优异。
+`app/database.py` reads these values to build the SQLAlchemy connection string.
 
-2. **pyorbital**：
-   - 专业的卫星轨道计算库，支持基于 TLE 的轨道预测。
-   - 提供高精度的卫星位置和速度计算，适用于实际应用场景。
+### 5. Initialize the database
 
-通过以上技术栈的组合，本项目能够高效、准确地完成卫星轨道计算任务，同时提供良好的扩展性和开发体验。
+You can load the provided schema and sample data from `init.sql` into MySQL before starting the service.
 
-## 开发指南
+Example:
 
-- **数据库配置：** 数据库连接配置位于 `app/database.py`，可根据需要修改。
-- **路由模块：** 所有路由定义在 `app/routers` 目录下，可根据需求添加新模块。
-- **依赖注入：** 公共依赖定义在 `app/dependencies.py`，如用户认证和权限检查。
-- **日志记录：** 使用 Python 的 `logging` 模块记录调试信息，日志配置可在 `app` 目录下添加。
+```bash
+mysql -u root -p satplan3d < init.sql
+```
 
-## 注意事项
+The application also calls `models.Base.metadata.create_all(bind=engine)` at startup, which creates missing tables defined by the ORM models.
 
-- 确保 MySQL 数据库已启动，并使用 `.env` 文件中提供的用户名和密码可以正常连接。
-- 使用 `Dockerfile` 构建镜像时，请确保 `requirements.txt` 和代码文件完整无误。
-- 更多信息请参考 [FastAPI 官方文档](https://fastapi.tiangolo.com/)。
+### 6. Start the API server
 
-## 常见问题
+```bash
+uvicorn app.main:app --reload
+```
 
-1. **如何添加新路由？**
-   在 `app/routers` 目录下创建新的 Python 文件，定义路由后在 `app/main.py` 中引入即可。
+### 7. Verify the service
 
-2. **如何修改 Token 有效期？**
-   在 `app/routers/auth.py` 中修改 `timedelta` 的值即可调整 Token 的过期时间。
+- API root: `http://127.0.0.1:8000/api`
+- Swagger UI: `http://127.0.0.1:8000/docs`
 
-3. **如何扩展数据库模型？**
-   在 `app/models.py` 中定义新的模型类，并运行 Alembic 迁移脚本更新数据库。
+## Authentication Model
+
+- `POST /api/login` returns a bearer token.
+- Protected admin actions, such as satellite creation and TLE updates, require a valid JWT.
+- OAuth2 bearer token extraction is configured in `app/dependencies.py`.
+
+At the moment, JWT settings such as `SECRET_KEY` and `ALGORITHM` are defined directly in `app/security.py` rather than loaded from environment variables.
+
+## Planning Workflow
+
+A typical backend workflow looks like this:
+
+1. Import or create a satellite using TLE data.
+2. Store the parsed TLE in the database.
+3. Precompute one week of tracks and sensor paths at a 20-second interval.
+4. Query track points or path points for a time window.
+5. Search for observation opportunities over a target area.
+6. Persist selected opportunities as planning orders.
+
+This design keeps common query paths fast by precomputing track and sensor path data while still allowing fallback orbital calculations when cached track data is unavailable.
+
+## Development Notes
+
+- Route registration happens in `app/main.py`.
+- Shared request and response models are defined in `app/schemas/base.py`.
+- Database entities are defined in `app/models.py`.
+- Coordinate-related calculations live in `app/utils/coordinate_transform.py`.
+- Logging is configured with the standard Python `logging` module.
+
+## Known Gaps
+
+- The `GET /api/coverage` endpoint is currently a placeholder and returns an empty list.
+- Some configuration values that would usually live in environment variables are still hardcoded in `app/security.py`.
+- There is no migration setup in the repository; schema evolution is currently manual.
+- The repository does not include an automated test suite.
+
+## FAQ
+
+### How do I add a new route?
+
+Create a new router module under `app/routers` and register it in `app/main.py`.
+
+### How are tracks generated?
+
+When TLE data is created or updated, the service precomputes one week of track points and sensor paths in 20-second steps.
+
+### Does the API compute tracks in real time?
+
+Yes. `GET /api/track-points` first checks the database for precomputed tracks and falls back to live orbital calculation if necessary.
+
+### Is this ready for production?
+
+It is a functional backend service, but production hardening is still needed around configuration management, migrations, test coverage, and endpoint completeness.
